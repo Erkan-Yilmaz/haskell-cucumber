@@ -1,0 +1,18 @@
+Name:                cucumber
+Version:             0.1
+Synopsis:            A cucumber lookalike in Haskell
+Homepage:            git://github.com/sakari/haskell-cucumber.git
+License:             BSD3
+License-file:        LICENSE
+Author:              Sakari Jokinen
+Maintainer:          sakariij@gmail.com
+Category:            Testing
+Build-type:          Simple
+Cabal-version:       >=1.10
+
+Library
+ default-language: Haskell2010
+ ghc-options: -Wall
+ exposed-modules: Test.Cucumber
+ build-depends: base >= 4, gherkin >= 0.1
+  
