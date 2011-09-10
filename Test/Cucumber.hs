@@ -13,10 +13,11 @@ import Data.Typeable
 import Control.Exception
 import Prelude hiding (catch)
 import Text.PrettyPrint
+import Control.Arrow
 
 type StepDefinitions = [StepDefinition]
 data StepDefinition = StepDefinition { step_pattern :: String
-                                     , step_action :: IO ()
+                                     , step_action :: [String] -> IO ()
                                      }
 
 cucumber :: StepDefinitions -> FilePath -> IO [Test]
@@ -35,20 +36,32 @@ executeStep :: StepDefinitions -> Step -> IO ()
 executeStep steps step = wrapError step $ pickStep steps step  
 
 pickStep :: StepDefinitions -> Step -> IO ()
-pickStep steps step = fromMaybe notFound $ step_action `fmap` find go steps
+pickStep steps step = exactlyOne $ catMaybes $ map go steps
   where
+    exactlyOne [] = notFound
+    exactlyOne [(_, act)] = act 
+    exactlyOne ss = throw $ MoreThanOneMatchingStepDefinition $ map fst ss
     notFound = throw $ PendingStep
-    go StepDefinition { step_pattern } = isJust $ mkRegex step_pattern `matchRegex` step_body (step_text step)
+    go StepDefinition { step_pattern 
+                      , step_action 
+                      } = (const step_pattern &&& step_action) `fmap` 
+                          (mkRegex step_pattern `matchRegex` step_body (step_text step))
+    
 
 data StepFailed = StepFailed { step_failed_exception :: SomeException
                              , step_failed_step :: String
                              }
                   deriving (Show, Typeable)
+                           
 data Pending = PendingStep
                deriving (Show, Typeable)
+                        
+data MoreThanOneMatchingStepDefinition = MoreThanOneMatchingStepDefinition [String]                        
+                                       deriving (Show, Typeable)
 
-instance Exception StepFailed 
+instance Exception StepFailed
 instance Exception Pending
+instance Exception MoreThanOneMatchingStepDefinition
 
 wrapError :: Step -> IO () -> IO ()
 wrapError step io = io `catch` go 
