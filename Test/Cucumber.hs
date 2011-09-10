@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, DeriveDataTypeable #-}
 
 module Test.Cucumber where
 
@@ -9,6 +9,10 @@ import Text.Parsec.String
 import Text.Regex
 import Data.Maybe
 import Data.List
+import Data.Typeable
+import Control.Exception
+import Prelude hiding (catch)
+import Text.PrettyPrint
 
 type StepDefinitions = [StepDefinition]
 data StepDefinition = StepDefinition { step_pattern :: String
@@ -28,10 +32,28 @@ cukeScenario steps Scenario { scenario_name
                       , scenario_steps } = [testCase scenario_name $ mapM_ (executeStep steps) scenario_steps]  
 
 executeStep :: StepDefinitions -> Step -> IO ()
-executeStep steps step = pickStep steps step 
+executeStep steps step = wrapError step $ pickStep steps step  
 
 pickStep :: StepDefinitions -> Step -> IO ()
 pickStep steps step = fromMaybe notFound $ step_action `fmap` find go steps
   where
-    notFound = error $ "Could not find a step definition.\nYou need to implement it before proceeding"
+    notFound = throw $ PendingStep
     go StepDefinition { step_pattern } = isJust $ mkRegex step_pattern `matchRegex` step_body (step_text step)
+
+data StepFailed = StepFailed { step_failed_exception :: SomeException
+                             , step_failed_step :: String
+                             }
+                  deriving (Show, Typeable)
+data Pending = PendingStep
+               deriving (Show, Typeable)
+
+instance Exception StepFailed 
+instance Exception Pending
+
+wrapError :: Step -> IO () -> IO ()
+wrapError step io = io `catch` go 
+  where
+    go :: SomeException -> IO ()
+    go e = throw $ StepFailed { step_failed_exception = e
+                              , step_failed_step = render $ prettyStep step 
+                              }
