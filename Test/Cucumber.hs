@@ -20,6 +20,9 @@ data StepDefinition = StepDefinition { step_pattern :: String
                                      , step_action :: [String] -> IO ()
                                      }
 
+step :: String -> ([String] -> IO ()) -> StepDefinition
+step pattern act = StepDefinition pattern act
+
 cucumber :: StepDefinitions -> FilePath -> IO [Test]
 cucumber steps path = either (error . show) (cukeFeature steps) `fmap` 
                 parseFromFile parseFeature path
