@@ -17,5 +17,7 @@ Library
  build-depends: 
    base >= 4, 
    gherkin >= 0.1,
-   test-framework >= 0.4.0
+   test-framework >= 0.4.0,
+   parsec >= 3.1.1
+   
   
