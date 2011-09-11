@@ -19,8 +19,16 @@ type StepDefinitions = [StepDefinition]
 data StepDefinition = StepDefinition { step_pattern :: String
                                      , step_action :: [String] -> IO ()
                                      }
+                    | StepWithArg { step_pattern :: String
+                                  , step_action_with_arg :: [String] 
+                                                            -> BlockArg 
+                                                            -> IO ()
+                                  }
 
-step :: String -> ([String] -> IO ()) -> StepDefinition
+stepArg :: String -> ([String] ->  BlockArg -> IO ()) -> StepDefinition
+stepArg = StepWithArg
+
+step :: String -> ([String] ->  IO ()) -> StepDefinition
 step pattern act = StepDefinition pattern act
 
 cucumber :: StepDefinitions -> FilePath -> IO [Test]
@@ -71,26 +79,37 @@ pickStep steps step = exactlyOne $ catMaybes $ map go steps
     exactlyOne [(_, act)] = act 
     exactlyOne ss = throw $ MoreThanOneMatchingStepDefinition $ map fst ss
     notFound = throw $ PendingStep
+    withoutArg s params = 
+      maybe (s params) (const $ throw StepDidNotExpectBlockArgument) $ 
+      step_arg $ step_text step
+    withArg s params = 
+      maybe (throw StepExpectedBlockArgument) (s params) $ 
+      step_arg $ step_text step
     go StepDefinition { step_pattern 
                       , step_action 
-                      } = (const step_pattern &&& step_action) `fmap` 
-                          (mkRegex step_pattern `matchRegex` step_body (step_text step))
-    
+                      } = (const step_pattern &&& 
+                           withoutArg step_action) `fmap` 
+                          matcher step_pattern 
+    go StepWithArg { step_pattern
+                   , step_action_with_arg } = 
+      (const step_pattern &&& 
+       withArg step_action_with_arg) `fmap`
+      matcher step_pattern
+    matcher pat = mkRegex pat `matchRegex` step_body (step_text step)
 
 data StepFailed = StepFailed { step_failed_exception :: SomeException
                              , step_failed_step :: String
                              }
                   deriving (Show, Typeable)
                            
-data Pending = PendingStep
-               deriving (Show, Typeable)
-                        
-data MoreThanOneMatchingStepDefinition = MoreThanOneMatchingStepDefinition [String]                        
-                                       deriving (Show, Typeable)
-
+data CucumberException = PendingStep 
+                       | StepDidNotExpectBlockArgument
+                       | StepExpectedBlockArgument
+                       | MoreThanOneMatchingStepDefinition [String]
+                       deriving (Show, Typeable)
+                                  
 instance Exception StepFailed
-instance Exception Pending
-instance Exception MoreThanOneMatchingStepDefinition
+instance Exception CucumberException
 
 wrapError :: Step -> IO () -> IO ()
 wrapError step io = io `catch` go 
