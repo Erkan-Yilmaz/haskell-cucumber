@@ -58,8 +58,8 @@ substitute  header steps values = map sub steps
     subString str = foldl (flip ($)) str $ regexs 
     subArg = error "tbd: substitute outline variables to step args "
     regexs = zipWith mkSub header values
-    mkSub h v = let r = mkRegex $ "<" ++ h ++ ">"
-                in \i -> subRegex r i v 
+    mkSub h v i = let r = mkRegex $ "<" ++ h ++ ">"
+                  in subRegex r i v 
     
 executeStep :: StepDefinitions -> Step -> IO ()
 executeStep steps step = wrapError step $ pickStep steps step  
