@@ -33,8 +33,34 @@ cukeFeature steps Feature { feature_scenarios }  = concat $
     
 cukeScenario :: StepDefinitions -> Scenario -> [Test]    
 cukeScenario steps Scenario { scenario_name
-                      , scenario_steps } = [testCase scenario_name $ mapM_ (executeStep steps) scenario_steps]  
+                            , scenario_steps } = 
+  [cukeSteps steps scenario_name scenario_steps]
+  
+cukeScenario steps ScenarioOutline { scenario_name
+                                   , scenario_steps
+                                   , scenario_table } =
+  cukeSteps steps scenario_name `fmap`
+  (map (table_headers scenario_table `substitute` scenario_steps) $ 
+   table_values scenario_table)
 
+  
+cukeSteps :: StepDefinitions -> String -> [Step] -> Test
+cukeSteps stepDefs name steps = testCase name $ 
+                       mapM_ (executeStep stepDefs) steps
+
+substitute :: [String] -> [Step] -> [String] -> [Step]
+substitute  header steps values = map sub steps
+  where
+    subStepText s = s { step_body = subString $ step_body s
+                      , step_arg = fmap subArg $ step_arg s
+                      } 
+    sub s = s { step_text = subStepText $ step_text s } 
+    subString str = foldl (flip ($)) str $ regexs 
+    subArg = error "tbd: substitute outline variables to step args "
+    regexs = zipWith mkSub header values
+    mkSub h v = let r = mkRegex $ "<" ++ h ++ ">"
+                in \i -> subRegex r i v 
+    
 executeStep :: StepDefinitions -> Step -> IO ()
 executeStep steps step = wrapError step $ pickStep steps step  
 
