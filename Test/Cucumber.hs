@@ -47,10 +47,11 @@ cukeScenario steps Scenario { scenario_name
 cukeScenario steps ScenarioOutline { scenario_name
                                    , scenario_steps
                                    , scenario_table } =
-  cukeSteps steps scenario_name `fmap`
+  zipWith go [0 .. ]
   (map (table_headers scenario_table `substitute` scenario_steps) $ 
    table_values scenario_table)
-
+    where
+      go i s = cukeSteps steps (scenario_name ++ " (" ++ show i ++ ")") s
   
 cukeSteps :: StepDefinitions -> String -> [Step] -> Test
 cukeSteps stepDefs name steps = testCase name $ 
