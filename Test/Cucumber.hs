@@ -65,7 +65,11 @@ substitute  header steps values = map sub steps
                       } 
     sub s = s { step_text = subStepText $ step_text s } 
     subString str = foldl (flip ($)) str $ regexs 
-    subArg = error "tbd: substitute outline variables to step args "
+    subArg (BlockPystring str) = BlockPystring $ subString str
+    subArg (BlockTable (Table hs vs)) = 
+      let hs'new = map subString hs
+          vs'new = map subString `map` vs
+      in BlockTable $ Table hs'new vs'new
     regexs = zipWith mkSub header values
     mkSub h v i = let r = mkRegex $ "<" ++ h ++ ">"
                   in subRegex r i v 
