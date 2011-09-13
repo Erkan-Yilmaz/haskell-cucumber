@@ -19,14 +19,22 @@ type StepDefinitions = [StepDefinition]
 data StepDefinition = StepDefinition { step_pattern :: String
                                      , step_action :: [String] -> IO ()
                                      }
-                    | StepWithArg { step_pattern :: String
-                                  , step_action_with_arg :: [String] 
-                                                            -> BlockArg 
-                                                            -> IO ()
-                                  }
+                    | StepWithTable { step_pattern :: String
+                                   , step_action_with_table :: [String] 
+                                                               -> Table
+                                                               -> IO ()
+                                   }
+                    | StepWithString { step_pattern :: String
+                                     , step_action_with_string :: [String]
+                                                                  -> String
+                                                                  -> IO ()
+                                     }
+                      
+stepTable :: String -> ([String] ->  Table -> IO ()) -> StepDefinition
+stepTable = StepWithTable
 
-stepArg :: String -> ([String] ->  BlockArg -> IO ()) -> StepDefinition
-stepArg = StepWithArg
+stepStr :: String -> ([String] ->  String -> IO ()) -> StepDefinition
+stepStr = StepWithString
 
 step :: String -> ([String] ->  IO ()) -> StepDefinition
 step pattern act = StepDefinition pattern act
@@ -84,21 +92,30 @@ pickStep steps step = exactlyOne $ catMaybes $ map go steps
     exactlyOne [(_, act)] = act 
     exactlyOne ss = throw $ MoreThanOneMatchingStepDefinition $ map fst ss
     notFound = throw $ PendingStep
-    withoutArg s params = 
-      maybe (s params) (const $ throw StepDidNotExpectBlockArgument) $ 
-      step_arg $ step_text step
-    withArg s params = 
-      maybe (throw StepExpectedBlockArgument) (s params) $ 
-      step_arg $ step_text step
+    stepArg = step_arg $ step_text step
+    withoutArg s params = case stepArg of
+      Nothing -> s params
+      _ -> throw StepDidNotExpectBlockArgument
+    withTable s params = case stepArg of 
+      Just (BlockTable t) -> s params t 
+      _ -> throw StepExpectedTable
+    withString s params = case stepArg of
+      Just (BlockPystring str) -> s params str
+      _ -> throw StepExpectedPystring
+    go StepWithString { step_pattern
+                      , step_action_with_string
+                      } = (const step_pattern &&&
+                           withString step_action_with_string) `fmap`
+                          matcher step_pattern
     go StepDefinition { step_pattern 
                       , step_action 
                       } = (const step_pattern &&& 
                            withoutArg step_action) `fmap` 
                           matcher step_pattern 
-    go StepWithArg { step_pattern
-                   , step_action_with_arg } = 
+    go StepWithTable { step_pattern
+                     , step_action_with_table } = 
       (const step_pattern &&& 
-       withArg step_action_with_arg) `fmap`
+       withTable step_action_with_table) `fmap`
       matcher step_pattern
     matcher pat = mkRegex pat `matchRegex` step_body (step_text step)
 
@@ -109,7 +126,8 @@ data StepFailed = StepFailed { step_failed_exception :: SomeException
                            
 data CucumberException = PendingStep 
                        | StepDidNotExpectBlockArgument
-                       | StepExpectedBlockArgument
+                       | StepExpectedTable
+                       | StepExpectedPystring
                        | MoreThanOneMatchingStepDefinition [String]
                        deriving (Show, Typeable)
                                   

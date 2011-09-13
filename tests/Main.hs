@@ -17,16 +17,16 @@ steps = [
   step "a step '(.*)' matches 'value'" $ \[v] ->
    ret $ "value" =.= v
   
-  , stepArg "step gets the argument" $ \[] (BlockTable (Table hs vs)) ->
+  , stepTable "step gets the argument" $ \[] (Table hs vs) ->
    ret $ ["foo"] =.= hs && [["bar"]] =.= vs 
   
   , step "a table (.*)" $ \[v] -> 
    ret $ "first" =.= v || "second" =.= v 
   
-  , stepArg "a pystring" $ \[] (BlockPystring str) ->
+  , stepStr "a pystring" $ \[] str ->
    ret $ "Foobar" =.= str
   
-  , stepArg "expand table values" $ \[] (BlockTable (Table hs vs)) ->
+  , stepTable "expand table values" $ \[] (Table hs vs) ->
    ret $ hs =.= ["values"] && vs =.= [["foo"]]
   ]
 
