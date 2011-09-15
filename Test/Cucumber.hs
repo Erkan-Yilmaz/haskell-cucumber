@@ -1,6 +1,31 @@
+
 {-# LANGUAGE NamedFieldPuns, DeriveDataTypeable, FlexibleInstances #-}
 
-module Test.Cucumber where
+{-| Create 'Test.Framework' tests from feature specification
+
+At the lowest level we parse 'Gherkin' feature spec files and produce 
+'Test.Framework.Test' structures from them.
+
+A Gherkin feature spec file consists of steps that are tied to runnable actions
+with the 'Test.Cucumber.step' function.
+
+>>> let steps = [ step "example step" $ (return () :: IO ()) ]
+
+After defining the steps we can produce the test cases and execute 
+them with 'Test.Framework.defaultMain'
+
+>>> cucumber steps "tests/example.feature" >>= flip defaultMainWithArgs ["--plain"]
+simple scenario: [OK]
+
+         Test Cases  Total       
+ Passed  1           1          
+ Failed  0           0           
+ Total   1           1          
+*** Exception: ExitSuccess"
+
+-}
+
+module Test.Cucumber (step, cucumber) where
 
 import Language.Gherkin
 import Test.Framework
