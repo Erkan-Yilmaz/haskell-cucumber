@@ -14,7 +14,7 @@ Feature: First example
   Scenario: simple scenario
     Given example step
 
-The steps are defined using the 'Test.Cucumber.step' function.
+The steps are defined using the 'step' function.
 
 >>> let steps = [ step "example step" $ (return () :: IO ()) ]
 
@@ -32,7 +32,11 @@ simple scenario: [OK]
 
 -}
 
-module Test.Cucumber (step, cucumber) where
+module Test.Cucumber (StepDef
+                     , cucumber
+                     , StepDefinition
+                     , StepDefinitions
+                     ) where
 
 import Language.Gherkin
 import Test.Framework
@@ -48,9 +52,13 @@ import Text.PrettyPrint
 import Control.Arrow
 
 type StepDefinitions = [StepDefinition]
+
 data StepDefinition = StepDefinition { step_pattern :: String
                                      , step_action :: [String] -> Maybe BlockArg -> IO ()
                                      }
+                      
+{-| The 'StepDef' typeclass provides helper functions for creating step definitions ('StepDefinition')
+-}
 
 class StepDef s where
   step :: String -> s -> StepDefinition
