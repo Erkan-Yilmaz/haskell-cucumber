@@ -55,11 +55,29 @@ data StepDefinition = StepDefinition { step_pattern :: String
 class StepDef s where
   step :: String -> s -> StepDefinition
 
+{-| A step that gets as arguments the matched 'Text.Regex' groups.
+
+>>> let s = step "the value is (.*)" $ \[v] -> putStrLn v 
+>>> executeStep [s] $ Given $ StepText "the value is bar" Nothing
+bar
+
+-}
+
 instance StepDef ([String] -> IO ()) where
   step p a = StepDefinition p go
     where
       go (s:ss) Nothing = a (s:ss)
       go _ _ = throw StepDidNotExpectBlockArgument
+
+{-| A step taking as arguments both the regex groups and a table
+
+>>> let table = Table ["header"] [["values"]]
+>>> let str = "arg"
+>>> let s = step "the value is (.*)" $ \[v] t -> print (v == str && t == table)
+>>> executeStep [s] $ Given $ StepText "the value is arg" $ Just $ BlockTable table
+True
+
+-}
 
 instance StepDef ([String] ->  Table -> IO ()) where
   step p a = StepDefinition p go
@@ -67,11 +85,29 @@ instance StepDef ([String] ->  Table -> IO ()) where
       go (s:ss) (Just (BlockTable t)) = a (s:ss) t
       go _ _ = throw StepExpectedTable
 
+{-| A step taking as arguments both a the regex groups and a pystring
+
+>>> let arg = "arg"
+>>> let pystr = "pystr"
+>>> let s = step "the value is (.*)" $ \[v] str -> print (v == arg && str == pystr)
+>>> executeStep [s] $ Given $ StepText "the value is arg" $ Just $ BlockPystring "pystr"
+True
+
+-}
+
 instance StepDef ([String] ->  String -> IO ()) where
   step p a = StepDefinition p go 
     where 
       go (s:ss) (Just (BlockPystring pystr)) = a (s:ss) pystr
       go _ _ = throw StepExpectedPystring
+
+{-| A step taking as arguments just a pystring
+
+>>> let s = step "the value is" $ putStrLn
+>>> executeStep [s] $ Given $ StepText "the value is" $ Just $ BlockPystring "str" 
+str
+
+-}
 
 instance StepDef (String -> IO ()) where
   step p a = StepDefinition p go
@@ -80,12 +116,29 @@ instance StepDef (String -> IO ()) where
       go [] (Just (BlockPystring pystr)) = a pystr
       go _ _ = throw StepExpectedPystring
 
+{-| A step taking as argument just a table
+
+>>> let table = Table ["header"] [["values"]]
+>>> let s = step "a table" $ \t -> print (t == table)
+>>> executeStep [s] $ Given $ StepText "a table" $ Just $ BlockTable table
+True
+
+-}
+
 instance StepDef (Table -> IO ()) where
   step p a = StepDefinition p go
     where
       go (s:ss) _ = throw StepDidNotExpectRegexArguments
       go [] (Just (BlockTable t)) = a t
       go _ _ = throw StepExpectedTable
+
+{-| A step that does not take any arguments
+
+>>> let s = step "a step without args" $ putStrLn "no args"
+>>> executeStep [s] $ Given $ StepText "a step without args" Nothing
+no args
+
+-}
 
 instance StepDef (IO ()) where
   step p a = StepDefinition p go
