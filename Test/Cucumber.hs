@@ -14,10 +14,12 @@ Feature: First example
   Scenario: simple scenario
     Given example step
 
+The steps are defined using the 'Test.Cucumber.step' function.
+
 >>> let steps = [ step "example step" $ (return () :: IO ()) ]
 
-After defining the steps we can produce the test cases and execute 
-them with 'Test.Framework.defaultMain'
+After defining the steps we can produce the test cases with 'cucumber' 
+and execute them using 'Test.Framework'.
 
 >>> cucumber steps "tests/example.feature" >>= flip defaultMainWithArgs ["--plain"]
 simple scenario: [OK]
