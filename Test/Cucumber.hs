@@ -30,6 +30,29 @@ simple scenario: [OK]
  Total   1           1          
 *** Exception: ExitSuccess
 
+For scenario outlines each example row produces a new testcase
+
+>>> readFile "tests/outline.feature" >>= putStr
+Feature: scenario outlines
+  Scenario-outline: outline
+    Given each <value>
+    Examples:
+    | value  |
+    | first  |
+    | second |
+
+>>> let opts =  ["--plain", "--hide-successes"]
+>>> let steps' = [step "each (.*)" $ \[value] -> putStrLn value]
+>>> cucumber steps' "tests/table.feature" >>= flip defaultMainWithArgs opts
+first
+second
+<BLANKLINE>
+         Test Cases  Total      
+ Passed  2           2          
+ Failed  0           0          
+ Total   2           2          
+*** Exception: ExitSuccess
+
 -}
 
 module Test.Cucumber (StepDef
