@@ -6,8 +6,13 @@
 At the lowest level we parse 'Gherkin' feature spec files and produce 
 'Test.Framework.Test' structures from them.
 
-A Gherkin feature spec file consists of steps that are tied to runnable actions
-with the 'Test.Cucumber.step' function.
+A Gherkin feature spec files consist of scenarios which in turn consist of
+steps. By convention the feature files have prefix 'feature'
+
+>>> readFile "tests/example.feature" >>= putStr
+Feature: First example
+  Scenario: simple scenario
+    Given example step
 
 >>> let steps = [ step "example step" $ (return () :: IO ()) ]
 
@@ -16,12 +21,12 @@ them with 'Test.Framework.defaultMain'
 
 >>> cucumber steps "tests/example.feature" >>= flip defaultMainWithArgs ["--plain"]
 simple scenario: [OK]
-
-         Test Cases  Total       
+<BLANKLINE>
+         Test Cases  Total      
  Passed  1           1          
- Failed  0           0           
+ Failed  0           0          
  Total   1           1          
-*** Exception: ExitSuccess"
+*** Exception: ExitSuccess
 
 -}
 
