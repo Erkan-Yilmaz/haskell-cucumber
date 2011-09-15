@@ -2,7 +2,8 @@ Haskell Cucumber
 ===============
 
 A Cucumber lookalike in Haskell. Currently this only provides
-a library for producing Test.Framework.Tests
+a library for producing Test.Framework.Tests. See the genarated
+haddock documentation for usage examples.
 
 Installing
 ----------
