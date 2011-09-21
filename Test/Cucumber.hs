@@ -43,7 +43,7 @@ Feature: scenario outlines
 
 >>> let opts =  ["--plain", "--hide-successes"]
 >>> let steps' = [step "each (.*)" $ \[value] -> putStrLn value]
->>> cucumber steps' "tests/table.feature" >>= flip defaultMainWithArgs opts
+>>> cucumber steps' "tests/outline.feature" >>= flip defaultMainWithArgs opts
 first
 second
 <BLANKLINE>
@@ -55,7 +55,7 @@ second
 
 -}
 
-module Test.Cucumber (StepDef
+module Test.Cucumber (StepDef(..)
                      , cucumber
                      , StepDefinition
                      , StepDefinitions
