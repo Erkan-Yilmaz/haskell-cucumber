@@ -46,4 +46,5 @@ Library
    parsec >= 3.1.1,
    pretty >= 1.1.0.0,
    regex-compat >= 0.93.1,
-   test-framework-hunit >= 0.2.6
+   test-framework-hunit >= 0.2.6,
+   mtl >= 2.0.1.0

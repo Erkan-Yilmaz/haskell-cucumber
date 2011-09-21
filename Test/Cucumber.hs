@@ -1,5 +1,9 @@
 
-{-# LANGUAGE NamedFieldPuns, DeriveDataTypeable, FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns
+, DeriveDataTypeable
+, FlexibleInstances
+, GeneralizedNewtypeDeriving 
+, TypeSynonymInstances #-}
 
 {-| Create 'Test.Framework' tests from feature specification
 
@@ -53,9 +57,33 @@ second
  Total   2           2          
 *** Exception: ExitSuccess
 
+It is possible to execute steps inside other steps with 'run'
+
+>>> let step1 = step "step 1" $ run "step 2"
+>>> let step2 = step "step 2" $ putStrLn "from step 2"
+>>> let steps = [step1, step2]
+>>> readFile "tests/inner.feature" >>= putStr
+Feature: steps can be used inside other steps
+  Scenario: test
+    Given step 1
+
+>>> cucumber steps "tests/inner.feature" >>= flip defaultMainWithArgs opts
+from step 2
+<BLANKLINE>
+         Test Cases  Total      
+ Passed  1           1          
+ Failed  0           0          
+ Total   1           1          
+*** Exception: ExitSuccess
+
 -}
 
 module Test.Cucumber (StepDef(..)
+                     , CukeM
+                     , CukeMonad(..)
+                     , run
+                     , runTable
+                     , runPystring
                      , cucumber
                      , StepDefinition
                      , StepDefinitions
@@ -73,18 +101,79 @@ import Control.Exception
 import Prelude hiding (catch)
 import Text.PrettyPrint
 import Control.Arrow
+import Control.Monad.Trans
+import Control.Monad.Reader
 
 type StepDefinitions = [StepDefinition]
 
 data StepDefinition = StepDefinition { step_pattern :: String
-                                     , step_action :: [String] -> Maybe BlockArg -> IO ()
+                                     , step_action :: [String] -> Maybe BlockArg -> CukeM ()
                                      }
-                      
+
+newtype CukeM a = CukeM { unwrapCukeM :: ReaderT StepDefinitions IO a }
+               deriving (Monad, MonadIO)
+
+runCukeM :: StepDefinitions -> CukeM a -> IO a
+runCukeM ss = flip runReaderT ss . unwrapCukeM
+
+{-| The class of things that can be converted to a 'CukeM'
+
+This is needed so that we can specify 'StepDef' instances easily
+for 'IO' and 'CukeM' in the same way (and for other types also if 
+needed)
+
+-}
+
+class CukeMonad m where
+  liftCuke :: m a -> CukeM a
+
+instance CukeMonad CukeM where
+  liftCuke = id
+
+instance CukeMonad IO where
+  liftCuke = liftIO
+
+{-| Run a step from within another step. 
+
+See 'runTable' and 'runPystring' for running steps with extra arguments.
+-}
+
+run :: String -> CukeM ()
+run str = runStep $ Given $ StepText str Nothing
+
+{-| Run a step with a table argument -}
+
+runTable :: String -> Table -> CukeM ()
+runTable str table = runStep $ Given $ StepText str $ Just $ BlockTable table
+
+{-| Run a step with a pystring argument -}
+
+runPystring :: String -> String -> CukeM ()
+runPystring str pystr = runStep $ Given $ StepText str $ Just $ BlockPystring pystr
+
+runStep :: Step -> CukeM ()
+runStep s = CukeM $ ask >>= liftIO . flip executeStep s 
+
+
 {-| The 'StepDef' typeclass provides helper functions for creating step definitions ('StepDefinition')
 -}
 
 class StepDef s where
   step :: String -> s -> StepDefinition
+
+{-| A step that does not take any arguments
+
+>>> let s = step "a step without args" $ putStrLn "no args"
+>>> executeStep [s] $ Given $ StepText "a step without args" Nothing
+no args
+
+-}
+
+instance CukeMonad m => StepDef (m ()) where
+  step p a = StepDefinition p go
+    where
+      go [] Nothing = liftCuke $ a
+      go _ _ = liftIO $ throw StepDidNotExpectAnyArguments
 
 {-| A step that gets as arguments the matched 'Text.Regex' groups.
 
@@ -94,11 +183,11 @@ bar
 
 -}
 
-instance StepDef ([String] -> IO ()) where
+instance CukeMonad m => StepDef ([String] -> m ()) where
   step p a = StepDefinition p go
     where
-      go (s:ss) Nothing = a (s:ss)
-      go _ _ = throw StepDidNotExpectBlockArgument
+      go (s:ss) Nothing = liftCuke $ a (s:ss)
+      go _ _ = liftIO $ throw StepDidNotExpectBlockArgument
 
 {-| A step taking as arguments both the regex groups and a table
 
@@ -110,11 +199,11 @@ True
 
 -}
 
-instance StepDef ([String] ->  Table -> IO ()) where
+instance CukeMonad m => StepDef ([String] ->  Table -> m ()) where
   step p a = StepDefinition p go
     where
-      go (s:ss) (Just (BlockTable t)) = a (s:ss) t
-      go _ _ = throw StepExpectedTable
+      go (s:ss) (Just (BlockTable t)) = liftCuke $ a (s:ss) t
+      go _ _ = liftIO $ throw StepExpectedTable
 
 {-| A step taking as arguments both a the regex groups and a pystring
 
@@ -126,11 +215,11 @@ True
 
 -}
 
-instance StepDef ([String] ->  String -> IO ()) where
+instance CukeMonad m => StepDef ([String] ->  String -> m ()) where
   step p a = StepDefinition p go 
     where 
-      go (s:ss) (Just (BlockPystring pystr)) = a (s:ss) pystr
-      go _ _ = throw StepExpectedPystring
+      go (s:ss) (Just (BlockPystring pystr)) = liftCuke $ a (s:ss) pystr
+      go _ _ = liftIO $ throw StepExpectedPystring
 
 {-| A step taking as arguments just a pystring
 
@@ -140,12 +229,12 @@ str
 
 -}
 
-instance StepDef (String -> IO ()) where
+instance CukeMonad m => StepDef (String -> m ()) where
   step p a = StepDefinition p go
     where
-      go (s:ss) _ = throw StepDidNotExpectRegexArguments
-      go [] (Just (BlockPystring pystr)) = a pystr
-      go _ _ = throw StepExpectedPystring
+      go (s:ss) _ = liftIO $ throw StepDidNotExpectRegexArguments
+      go [] (Just (BlockPystring pystr)) = liftCuke $ a pystr
+      go _ _ = liftIO $ throw StepExpectedPystring
 
 {-| A step taking as argument just a table
 
@@ -156,26 +245,12 @@ True
 
 -}
 
-instance StepDef (Table -> IO ()) where
+instance CukeMonad m => StepDef (Table -> m ()) where
   step p a = StepDefinition p go
     where
-      go (s:ss) _ = throw StepDidNotExpectRegexArguments
-      go [] (Just (BlockTable t)) = a t
-      go _ _ = throw StepExpectedTable
-
-{-| A step that does not take any arguments
-
->>> let s = step "a step without args" $ putStrLn "no args"
->>> executeStep [s] $ Given $ StepText "a step without args" Nothing
-no args
-
--}
-
-instance StepDef (IO ()) where
-  step p a = StepDefinition p go
-    where
-      go [] Nothing = a
-      go _ _ = throw StepDidNotExpectAnyArguments
+      go (s:ss) _ = liftIO $ throw StepDidNotExpectRegexArguments
+      go [] (Just (BlockTable t)) = liftCuke $ a t
+      go _ _ = liftIO $ throw StepExpectedTable
 
 cucumber :: StepDefinitions -> FilePath -> IO [Test]
 cucumber steps path = either (error . show) (cukeFeature steps) `fmap`
@@ -221,9 +296,9 @@ substitute  header steps values = map sub steps
                   in subRegex r i v
 
 executeStep :: StepDefinitions -> Step -> IO ()
-executeStep steps step = wrapError step $ pickStep steps step
+executeStep steps step = wrapError step $ runCukeM steps $ pickStep steps step
 
-pickStep :: StepDefinitions -> Step -> IO ()
+pickStep :: StepDefinitions -> Step -> CukeM ()
 pickStep steps step = exactlyOne $ catMaybes $ map go steps
   where
     exactlyOne [] = notFound
